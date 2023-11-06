@@ -47,4 +47,7 @@ export default new Router()
   })
   .match("/tag_path/:path*", {
     edge_function: "./functions/epsilon/reverse-proxy.js",
+    caching: {
+      bypass_client_cache: true,
+    },
   });

@@ -1,8 +1,10 @@
 import "../../utils/polyfills/URL";
+import { epsilonTag } from "./epsilon-tag.js";
 
 const epsilonConfig = {
   origin: "c1234.csd.dotomi.com",
-  path: "/tag_path",
+  path: "tag_path",
+  version: "0.4",
 };
 
 function isEpsilonDebugMode(request) {
@@ -18,7 +20,7 @@ function isEpsilonDebugMode(request) {
 function getWorkerDebugData(request) {
   return JSON.stringify({
     "RP URL": request.url.toString(),
-    "Origin URL": getNewOriginURL(request),
+    "Origin URL": getEpsilonURL(request),
     Config: epsilonConfig,
     Headers: Array.from(request.headers.entries()).reduce(
       (obj, [key, value]) => {
@@ -28,14 +30,6 @@ function getWorkerDebugData(request) {
       {}
     ),
   });
-}
-
-function getNewOriginURL(request) {
-  const url = new URL(request.url);
-  const hostname = getOriginHost(request);
-  return url
-    .toString()
-    .replace(`://${hostname}/${config.proxyPath}`, `://${config.origin}`);
 }
 
 function getSimilarityScore(str1, str2) {
@@ -102,7 +96,7 @@ function getEpsilonHeaders(request) {
 
 function getEpsilonURL(request) {
   const url = new URL(request.url);
-  const hostname = request.headers.get("Host");
+  const hostname = getOriginHost(request);
   return url
     .toString()
     .replace(
@@ -173,7 +167,6 @@ async function handleEpsilonRequest(finalOriginURL, headers, tags) {
     const similarityScores = tags.map((tag) =>
       getSimilarityScore(responseBody, tag)
     );
-    console.log(similarityScores);
     // if this tags script has a score in valid range for any approved tags pass
     if (similarityScores.some((score) => score > 0.9 && score < 1.0)) {
       similarityResultText = "Similarity Test passed";
@@ -196,6 +189,7 @@ async function handleEpsilonRequest(finalOriginURL, headers, tags) {
       matchingTag +
       "\n------\n" +
       responseBody;
+
     let responseHeaders = new Headers();
     responseHeaders.append("Content-Type", "application/javascript");
     return new Response(body, { status: 200, headers: responseHeaders });
@@ -220,9 +214,14 @@ export async function handleHttpRequest(request, context) {
 
   const finalOriginURL = getEpsilonURL(request);
   const headers = getEpsilonHeaders(request);
+  const epsilonTags = [epsilonTag];
 
   try {
-    let response = await handleEpsilonRequest(finalOriginURL, headers, "");
+    let response = await handleEpsilonRequest(
+      finalOriginURL,
+      headers,
+      epsilonTags
+    );
     return response;
   } catch (error) {
     let body = "// Unexpected Error: " + error;

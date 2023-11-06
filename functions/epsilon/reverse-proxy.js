@@ -5,6 +5,39 @@ const epsilonConfig = {
   path: "/tag_path",
 };
 
+function isEpsilonDebugMode(request) {
+  const url = new URL(request.url);
+  // Change URL from public URL to use the origin URL
+  const debugModeValue = getQueryParam(url, "dtm_worker_debug");
+  if (debugModeValue == "true") {
+    return true;
+  }
+  return false;
+}
+
+function getWorkerDebugData(request) {
+  return JSON.stringify({
+    "RP URL": request.url.toString(),
+    "Origin URL": getNewOriginURL(request),
+    Config: epsilonConfig,
+    Headers: Array.from(request.headers.entries()).reduce(
+      (obj, [key, value]) => {
+        obj[key] = value;
+        return obj;
+      },
+      {}
+    ),
+  });
+}
+
+function getNewOriginURL(request) {
+  const url = new URL(request.url);
+  const hostname = getOriginHost(request);
+  return url
+    .toString()
+    .replace(`://${hostname}/${config.proxyPath}`, `://${config.origin}`);
+}
+
 function getSimilarityScore(str1, str2) {
   // Tokenize the input strings into arrays of words
   const tokenize = (str) =>
@@ -175,6 +208,16 @@ async function handleEpsilonRequest(finalOriginURL, headers, tags) {
 }
 
 export async function handleHttpRequest(request, context) {
+  if (isEpsilonDebugMode(request)) {
+    const debugData = getWorkerDebugData(request);
+    return new Response(debugData, {
+      status: 200,
+      headers: {
+        "content-type": "application/json;charset=UTF-8",
+      },
+    });
+  }
+
   const finalOriginURL = getEpsilonURL(request);
   const headers = getEpsilonHeaders(request);
 

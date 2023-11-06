@@ -1,14 +1,14 @@
 // This file was automatically added by edgio init.
 // You should commit this file to source control.
 // Learn more about this file at https://docs.edg.io/guides/edgio_config
-require('dotenv').config();
+require("dotenv").config();
 
 module.exports = {
   // The name of the site in Edgio to which this app should be deployed.
-  name: 'edgio-functions-examples',
+  name: "edgio-functions-examples",
 
   // The name of the team in Edgio to which this app should be deployed.
-  team: 'edge-functions-sandbox',
+  team: "edge-functions-sandbox",
 
   // Overrides the default path to the routes file. The path should be relative to the root of your app.
   // routes: 'routes.js',
@@ -16,49 +16,62 @@ module.exports = {
   origins: [
     {
       // The name of the backend origin
-      name: 'dummy-json',
+      name: "dummy-json",
 
       // When provided, the following value will be sent as the host header when connecting to the origin.
       // If omitted, the host header from the browser will be forwarded to the origin.
-      override_host_header: 'edgio-functions-dummy-json-default.edgio.link',
+      override_host_header: "edgio-functions-dummy-json-default.edgio.link",
 
       // The list of backend hosts
       hosts: [
         {
           // The domain name or IP address of the origin server
-          location: 'edgio-functions-dummy-json-default.edgio.link',
+          location: "edgio-functions-dummy-json-default.edgio.link",
         },
       ],
     },
     {
-      name: 'planetscale',
-      override_host_header: 'aws.connect.psdb.cloud',
+      name: "planetscale",
+      override_host_header: "aws.connect.psdb.cloud",
       hosts: [
         {
-          location: 'aws.connect.psdb.cloud',
+          location: "aws.connect.psdb.cloud",
         },
       ],
     },
     {
-      name: 'upstash',
-      override_host_header: 'simple-weasel-38863.upstash.io',
+      name: "upstash",
+      override_host_header: "simple-weasel-38863.upstash.io",
       hosts: [
         {
-          location: 'simple-weasel-38863.upstash.io',
+          location: "simple-weasel-38863.upstash.io",
         },
       ],
     },
     {
-      name: 'google',
-      override_host_header: 'www.google.com',
+      name: "google",
+      override_host_header: "www.google.com",
       hosts: [
         {
-          location: 'www.google.com',
+          location: "www.google.com",
         },
       ],
       tls_verify: {
         use_sni: true,
-        sni_hint_and_strict_san_check: 'www.google.com',
+        sni_hint_and_strict_san_check: "www.google.com",
+      },
+    },
+    {
+      name: "epsilon-origin",
+      override_host_header: "c1234.csd.dotomi.com",
+      hosts: [
+        {
+          location: "c1234.csd.dotomi.com",
+        },
+      ],
+      tls_verify: {
+        use_sni: true,
+        sni_hint_and_strict_san_check: "c1234.csd.dotomi.com",
       },
     },
   ],

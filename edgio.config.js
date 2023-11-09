@@ -74,6 +74,33 @@ module.exports = {
         sni_hint_and_strict_san_check: "c1234.csd.dotomi.com",
       },
     },
+    {
+      name: "function-origin",
+      override_host_header: "epsilon-cnvrm-test-default.glb.edgio.link",
+      hosts: [
+        {
+          location: "epsilon-cnvrm-test-default.glb.edgio.link",
+        },
+      ],
+    },
+    {
+      name: "web",
+      override_host_header: "edgio-test.cnvrm.com",
+      hosts: [
+        {
+          location: "epsilon-cnvrm-test-default.glb.edgio.link",
+        },
+      ],
+    },
+    {
+      name: "epsilon-tags",
+      override_host_header: "tags.cnvrm.com",
+      hosts: [
+        {
+          location: "tags.cnvrm.com",
+        },
+      ],
+    },
   ],
 
   // Uncomment the following to specify environment specific configs

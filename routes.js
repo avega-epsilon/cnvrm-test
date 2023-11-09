@@ -45,9 +45,21 @@ export default new Router()
   .match("/example/upstash-database", {
     edge_function: "./functions/database/upstash/index.js",
   })
-  .match("/tag_path/:path*", {
+  .get("/tag_path_test/profile/:path*", {
+    edge_function: "./functions/epsilon/reverse-proxy-test.js",
+    caching: {
+      bypass_cache: true,
+    },
+  })
+  .get("/tag_path/profile/:path*", {
     edge_function: "./functions/epsilon/reverse-proxy.js",
     caching: {
-      bypass_client_cache: true,
+      bypass_cache: true,
+    },
+  })
+  .get("/tag_path/static/:path*", {
+    edge_function: "./functions/epsilon/tag-fetch.js",
+    caching: {
+      max_age: "7d",
     },
   });

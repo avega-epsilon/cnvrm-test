@@ -1,10 +1,11 @@
 import "../../utils/polyfills/URL";
+import { epsilonTag } from "./epsilon-tag.js";
 
 const epsilon_worker_id = 1234; //Internal Epsilon ID.
 const epsilonConfig = {
   origin: `c${epsilon_worker_id}.csd.dotomi.com`,
-  path: "tag_path",
-  version: "1.0.0",
+  path: "tag_path_final",
+  version: "0.8",
   epsilonCookieList: [
     "DotomiUser",
     "DotomiStatus",
@@ -30,22 +31,21 @@ const epsilonConfig = {
     "dtm_gpc_optout",
   ], // https://legal.epsilon.com/eu/cookie-list
   // Location for cached template tag used to compare viability.
-  template_tag_urls: [
-    `https://tags.cnvrm.com/epsilon/tag/consent-tag.txt`,
-    `https://tags.cnvrm.com/epsilon/tag/epsilon-tag.txt`,
-  ],
+  consent_template_tag_path: "static/epsilon/tags/consent-tag.txt",
+  epsilon_template_tag_path: "static/epsilon/tags/epsilon-tag.txt",
 };
 
-function isPixelRequest(request) {
-  const url = new URL(request.url);
-  if (
-    url.pathname
-      .toString()
-      .startsWith(`/${epsilonConfig.path}/profile/visit/px/1_0`)
-  ) {
-    return true;
+function shuffleString(s) {
+  let a = s.split(""),
+    n = a.length;
+
+  for (var i = n - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = a[i];
+    a[i] = a[j];
+    a[j] = tmp;
   }
-  return false;
+  return a.join("");
 }
 
 function isEpsilonDebugMode(request) {
@@ -59,6 +59,11 @@ function isEpsilonDebugMode(request) {
 }
 
 async function getWorkerDebugData(request) {
+  const host = getOriginHost(request);
+  //const consent_tag_url = `https://${host}/${epsilonConfig.path}/${epsilonConfig.consent_template_tag_path}`;
+  //const epsilon_tag_url = `https://${host}/${epsilonConfig.path}/${epsilonConfig.epsilon_template_tag_path}`;
+  const consent_tag_url = `https://tags.cnvrm.com/epsilon/tag/consent-tag.txt`;
+  const epsilon_tag_url = `https://tags.cnvrm.com/epsilon/tag/epsilon-tag.txt`;
   const tagTemplates = await getEpsilonTagTemplates(request);
 
   return JSON.stringify({
@@ -72,15 +77,26 @@ async function getWorkerDebugData(request) {
       },
       {}
     ),
+    "Epsilon Tag URL": epsilon_tag_url,
+    "Epsilon Consent Tag URL": consent_tag_url,
     "Tag response count": tagTemplates.length,
     "Similarity Test Tags": tagTemplates,
   });
 }
 
-/** Based on Dice Algorithm
- * Provides score between 0 and 1 between two strings
- * 1 being an exact match 0 being less of a match.
- * */
+function getSimilarityScore2(payloadA, payloadB) {
+  const setA = new Set(payloadA);
+  const setB = new Set(payloadB);
+
+  // Calculate intersection size
+  const intersectionSize = new Set([...setA].filter((x) => setB.has(x))).size;
+
+  // Calculate Sørensen-Dice coefficient
+  const coefficient = (2.0 * intersectionSize) / (setA.size + setB.size);
+
+  return coefficient;
+}
+
 function getSimilarityScore(str1, str2) {
   // Tokenize the input strings into arrays of words
   const tokenize = (str) =>
@@ -154,28 +170,20 @@ function getEpsilonURL(request) {
     );
 }
 
-function updateEpsilonJStoPX(epsilon_url) {
-  const url = new URL(epsilon_url);
-  let pxUrl = url
-    .toString()
-    .replace(`/profile/visit/js/1_0`, `/profile/visit/px/1_0`);
-
-  return pxUrl;
-}
-
 function filterForEpsilonCookies(headers) {
   // Check for cookie header, and if present filter to only allowed cookies.
   if (headers.has("Cookie")) {
     // Split cookie header in to array of individual cookies
     const cookieHeader = headers.get("Cookie");
     const cookies = cookieHeader.split(";");
-    let newCookies = "";
-    let cookiesCount = 0;
+    var newCookies = "";
+    var cookiesCount = 0;
 
     // Iterate through each cookie, checking if is matches allowed cookie names
     cookies.forEach(function (item, index, array) {
       // Remove any whitespaces
       item = item.trim();
+
       // Check cookie name
       const cookieNameMatches =
         item.startsWith("dtm_") ||
@@ -206,22 +214,7 @@ function addEpsilonRequestHeaders(headers, originHost) {
   headers.set("RP-Host", originHost);
 }
 
-async function handleEpsilonPixelRequest(request) {
-  const finalOriginURL = getEpsilonURL(request);
-  const headers = getEpsilonHeaders(request);
-  const init = {
-    headers: headers,
-    redirect: "manual",
-    edgio: {
-      origin: "epsilon-origin",
-    },
-  };
-  return await fetch(finalOriginURL, init);
-}
-
-async function handleEpsilonRequest(request, tags) {
-  const finalOriginURL = getEpsilonURL(request);
-  const headers = getEpsilonHeaders(request);
+async function handleEpsilonRequest(finalOriginURL, headers, tags) {
   const init = {
     headers: headers,
     redirect: "manual",
@@ -230,23 +223,38 @@ async function handleEpsilonRequest(request, tags) {
     },
   };
   let response = await fetch(finalOriginURL, init);
-  let pxURL;
 
   // Check status of response from origin server.
   if (response.status >= 200 && response.status <= 399) {
     const responseBody = await response.text();
+    let similarityResultText = "Similarity Test did not pass";
+    let matchingTag = "";
+    //const similarityScores = [];
+    //const similarityScores = [getSimilarityScore2(responseBody, tags[0])];
     const similarityScores = tags.map((tag) =>
       getSimilarityScore(responseBody, tag)
     );
     //// if this tags script has a score in valid range for any approved tags pass
-    if (similarityScores.some((score) => score > 0.9 && score < 1.0)) {
-      //pxURL = updateEpsilonJStoPX(request.url);
-      //return Response.redirect(pxURL, 301);
-      return response;
-    }
+    //if (similarityScores.some((score) => score > 0.9 && score < 1.0)) {
+    //  similarityResultText = "Similarity Test passed";
+    //}
+    let body =
+      "// status code: " +
+      response.status +
+      " " +
+      response.statusText +
+      ", similarity scores: " +
+      similarityScores +
+      ", " +
+      similarityResultText +
+      "\n" +
+      matchingTag +
+      "\n------\n" +
+      responseBody;
 
-    pxURL = updateEpsilonJStoPX(request.url);
-    return Response.redirect(pxURL, 301);
+    let responseHeaders = new Headers();
+    responseHeaders.append("Content-Type", "application/javascript");
+    return new Response(body, { status: 200, headers: responseHeaders });
   }
 
   let body = "// status code: " + response.status + " " + response.statusText;
@@ -257,27 +265,59 @@ async function handleEpsilonRequest(request, tags) {
 
 // Respond with pixel call when similarity check fails.
 // Add parameter to identify issue.
-async function handleEpsilonValidationFailure(finalOriginURL) {}
+async function handleSimilarityCheckFailure(request) {}
 
 async function getTemplateTag(url) {
+  //response = await fetch(url, { edgio: { origin: "edgio_static" } });
+  //const response = await fetch(url, { edgio: { origin: "function-origin" } });
+  //const response = await fetch(url, { edgio: { origin: "edgio_serverless" } });
   const response = await fetch(url, { edgio: { origin: "epsilon-tags" } });
   const body = await response.text();
   return body;
 }
 
 async function getEpsilonTagTemplates(request) {
+  const consent_tag_url = `https://tags.cnvrm.com/epsilon/tag/consent-tag.txt`;
+  const epsilon_tag_url = `https://tags.cnvrm.com/epsilon/tag/epsilon-tag.txt`;
   let tags = [];
   let tag;
 
+  //tag = epsilonTag; // in memory tag
+
+  //let response = await fetch(epsilon_tag_url, {
+  //  edgio: { origin: "function-origin" },
+  //});
+  //tag = await response.text();
+
   try {
-    const results = await Promise.all(
-      epsilonConfig.template_tag_urls.map((url) => getTemplateTag(url))
-    );
-    tags.push(...results);
+    const [consent_tag, epsilon_tag] = await Promise.all([
+      getTemplateTag(epsilon_tag_url),
+      getTemplateTag(consent_tag_url),
+    ]);
+    // Test algorithm with string shuffle.
+    tags.push(...[consent_tag, epsilon_tag]);
+    tags.push(...[shuffleString(consent_tag), shuffleString(epsilon_tag)]);
+
+    //tag = await getTemplateTag(consent_tag_url);
+    //console.log(tag.length);
+    //console.log(tag);
+    //tags.push(tag);
+    //tag = await getTemplateTag(epsilon_tag_url);
+    //console.log(tag.length);
+
+    //// test one url fetch
+    //let response = await fetch(epsilon_tag_url, {
+    //  edgio: { origin: "function-origin" },
+    //});
+    //tag = await response.text();
+
+    //let tag = epsilonTag; // in memory tag
   } catch (error) {
     tag = `// Unexpected error at getEpsilonTagTemplates: ${error}`;
     tags.push(tag);
   }
+
+  tags.push("// fail case some malicious unexpected javascript here.");
   return tags;
 }
 
@@ -292,15 +332,8 @@ export async function handleHttpRequest(request, context) {
     });
   }
 
-  if (isPixelRequest(request)) {
-    try {
-      let response = await handleEpsilonPixelRequest(request);
-      return response;
-    } catch (error) {
-      return new Response(null, { status: 200 });
-    }
-  }
-
+  const finalOriginURL = getEpsilonURL(request);
+  const headers = getEpsilonHeaders(request);
   let epsilonTags = [];
   let tags = [];
   try {
@@ -312,7 +345,11 @@ export async function handleHttpRequest(request, context) {
   epsilonTags.push(...tags);
 
   try {
-    let response = await handleEpsilonRequest(request, epsilonTags);
+    let response = await handleEpsilonRequest(
+      finalOriginURL,
+      headers,
+      epsilonTags
+    );
     return response;
   } catch (error) {
     let body = "// Unexpected Error at HandleHttpRequest: " + error;

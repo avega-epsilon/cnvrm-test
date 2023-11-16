@@ -137,7 +137,7 @@ function getQueryParam(url, param) {
 }
 
 function getEpsilonHeaders(request) {
-  let epsilonHeaders = new Headers(request.headers);
+  let epsilonHeaders = new Headers(request.headers.entries());
   addEpsilonRequestHeaders(epsilonHeaders, getOriginHost(request));
   filterForEpsilonCookies(epsilonHeaders); // only send through epsilon related cookies
   return epsilonHeaders;
@@ -165,9 +165,9 @@ function updateEpsilonJStoPX(epsilon_url) {
 
 function filterForEpsilonCookies(headers) {
   // Check for cookie header, and if present filter to only allowed cookies.
-  if (headers.has("Cookie")) {
+  if (headers.has("cookie")) {
     // Split cookie header in to array of individual cookies
-    const cookieHeader = headers.get("Cookie");
+    const cookieHeader = headers.get("cookie");
     const cookies = cookieHeader.split(";");
     let newCookies = "";
     let cookiesCount = 0;
@@ -194,9 +194,9 @@ function filterForEpsilonCookies(headers) {
 
     // Add cookies that are allowed, or delete cookies header if none matched
     if (newCookies == "") {
-      headers.delete("Cookie");
+      headers.delete("cookie");
     } else {
-      headers.set("Cookie", newCookies);
+      headers.set("cookie", newCookies);
     }
   }
 }

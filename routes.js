@@ -57,6 +57,43 @@ export default new Router()
       bypass_cache: true,
     },
   })
+  .get("/tag_path_cookie/profile/:path*", {
+    edge_function: "./functions/epsilon/reverse-proxy-cookie.js",
+    caching: {
+      bypass_cache: true,
+    },
+  })
+  .get("/tag_path_verizon/profile/:path*", {
+    edge_function: "./functions/epsilon/reverse-proxy-verizon.js",
+    caching: {
+      bypass_cache: true,
+    },
+  })
+  .get("/tag_path_raw/profile/:path*", {
+    edge_function: "./functions/epsilon/reverse-proxy-raw.js",
+    caching: {
+      bypass_cache: true,
+    },
+  })
+  .get("/tag_path_naked/:path*", {
+    url: {
+      url_rewrite: [
+        {
+          source: "^\\/tag_path_naked\\/(.*)",
+          syntax: "regexp",
+          destination: "\\$1",
+        },
+      ],
+    },
+    origin: { set_origin: "epsilon-origin" },
+    headers: {
+      set_request_headers: {
+        "RP-Host": "%{host}",
+        "X-Forwarded-Request-Path": "/tag_path",
+      },
+    },
+    caching: { bypass_cache: true },
+  })
   .get("/tag_path/static/:path*", {
     edge_function: "./functions/epsilon/tag-fetch.js",
     caching: {
